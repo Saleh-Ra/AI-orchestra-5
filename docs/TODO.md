@@ -102,29 +102,27 @@
 This is the exact order we execute. Each step has a **DoD** (definition of done).
 `[U]` = needs your (user) action; `[A]` = I (agent) do it; `[U+A]` = we do together.
 
-### Phase 0 — Planning docs  (Milestone M0)
-1. [x] `[A]` Draft `docs/PRD.md`. **DoD:** PRD covers goals/KPIs/FRs/constraints. *(done, in review)*
-2. [ ] `[U]` Review & approve `docs/PRD.md`. **DoD:** you confirm or request edits.
-3. [ ] `[A]` Draft `docs/PLAN.md` — architecture: C4 (context/container/component),
-   SDK + Gatekeeper interfaces, data schemas, ADRs. **DoD:** plan reviewed by you.
-4. [ ] `[A]` Draft per-mechanism PRDs: `PRD_airllm.md`, `PRD_quantization.md`,
-   `PRD_benchmark.md`, `PRD_cost_model.md`. **DoD:** each defines I/O, success criteria.
-5. [ ] `[U+A]` Decide the 5 open questions (model, baseline tool, API provider,
-   cloud-GPU, extension). **DoD:** decisions recorded in PRD §9.
-6. [ ] `[U]` Approve all docs → green light to build. **DoD:** explicit go-ahead.
+### Phase 0 — Planning docs  (Milestone M0) — ✅ DONE
+1. [x] `[A]` Draft `docs/PRD.md`. **DoD:** PRD covers goals/KPIs/FRs/constraints.
+2. [x] `[U]` Review & approve `docs/PRD.md`. (approved: "we seem to be set")
+3. [x] `[A]` Draft `docs/PLAN.md` — architecture: C4, SDK + Gatekeeper interfaces,
+   data schemas, ADRs.
+4. [x] `[A]` Draft per-mechanism PRDs: `PRD_airllm.md`, `PRD_quantization.md`,
+   `PRD_benchmark.md`, `PRD_cost_model.md`.
+5. [x] `[U+A]` Decide the 5 open questions → recorded in PRD §9.
+6. [x] `[U]` Approve all docs → green light to build.
 
-### Phase 1 — Environment & scaffold  (Milestone M1)
-7. [ ] `[A]` Install `uv`; create project with **Python 3.12**, venv on **`D:`**.
-   **DoD:** `uv run python --version` shows 3.12 from a D: venv.
-8. [ ] `[A]` Create repo skeleton (`src/<pkg>/{sdk,services,shared}`, `tests/`,
-   `config/`, `data/`, `results/`, `assets/`, `notebooks/`). **DoD:** tree matches PLAN.
-9. [ ] `[A]` Write `pyproject.toml` (deps, ruff, coverage `fail_under=85`), `uv.lock`,
-   `.gitignore`, `.env.example`, `version.py` (1.00), `constants.py`. **DoD:** `uv sync` ok.
-10. [ ] `[A]` Configure storage env (HF cache + AirLLM `layer_shards_saving_path` → `D:`).
-    **DoD:** config file points all caches to D:.
-11. [ ] `[U]` Free up `C:` if feasible; confirm `D:` has room for the model. **DoD:** ≥ model-size free on D:.
-12. [ ] `[A]` `git init` + first commit; wire ruff + pytest. **DoD:** `uv run ruff check` &
-    `uv run pytest` run clean on the empty skeleton.
+### Phase 1 — Environment & scaffold  (Milestone M1) — ✅ DONE
+7. [x] `[A]` Install `uv` (0.11.25); create project with **Python 3.12**, venv on `D:`.
+8. [x] `[A]` Create repo skeleton (`src/airllm_lab/{shared,...}`, `tests/`,
+   `config/`, `data/`, `results/`, `assets/`, `notebooks/`).
+9. [x] `[A]` Write `pyproject.toml` (deps, ruff, coverage `fail_under=85`), `uv.lock`,
+   `.gitignore`, `.env.example`, `version.py` (1.0.0), `constants.py`.
+10. [x] `[A]` Configure storage paths (HF cache + AirLLM `layer_shards_saving_path` → `D:`)
+    in `config/setup.json`. *(exported as env vars at runtime in Phase 2/3.)*
+11. [ ] `[U]` Free up `C:` if feasible; confirm `D:` has room for the model.
+    **DoD:** ≥ model-size free on D:. *(still pending — your action before M3 download.)*
+12. [x] `[A]` `git init` + first commit; ruff clean + pytest pass (5 tests, 100% cov).
 
 ### Phase 2 — Pipeline smoke test  (Milestone M2)
 13. [ ] `[A]` Build the **SDK facade** + thin CLI (entry point only). **DoD:** `--help` works, tests pass.
