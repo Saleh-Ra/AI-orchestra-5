@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "models": {
+    "smoke": "Qwen/Qwen2.5-0.5B-Instruct",
+    "primary": "Qwen/Qwen2.5-7B-Instruct",
+    "stretch": "Qwen/Qwen2.5-14B-Instruct"
+  },
+  "experiment": {
+    "prompt": "Explain how virtual memory and demand paging work, in 3 short paragraphs.",
+    "max_new_tokens": 128,
+    "repeats": 3,
+    "seed": 1234,
+    "quant_levels": ["fp16", "q8", "q4"]
+  },
+  "storage": {
+    "drive": "D:",
+    "hf_cache": "D:/airllm_lab_cache/huggingface",
+    "layer_shards_saving_path": "D:/airllm_lab_cache/airllm_shards",
+    "results_dir": "results",
+    "assets_dir": "assets"
+  },
+  "measurement": {
+    "memory_sampling_interval_sec": 0.2,
+    "warmup_runs": 1,
+    "assumed_avg_power_watts": 65
+  }
+}
