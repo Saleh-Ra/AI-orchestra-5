@@ -38,6 +38,9 @@ class RunResult:
     output_text: str
     ok: bool = True
     error: str = ""
+    peak_ram_gb: float = 0.0
+    peak_vram_gb: float = 0.0
+    energy_wh: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dict."""
@@ -61,3 +64,25 @@ class RunResult:
             ok=False,
             error=error,
         )
+
+
+@dataclass
+class BenchmarkSummary:
+    """Aggregated result of running one config ``repeats`` times.
+
+    Holds every per-run :class:`RunResult` (as dicts) plus per-metric
+    aggregates (mean/median/std/min/max over the successful runs), so the raw
+    and summarized data are persisted together for the report.
+    """
+
+    model_id: str
+    mode: str
+    quant: str
+    repeats: int
+    n_ok: int
+    runs: list[dict[str, Any]]
+    aggregates: dict[str, dict[str, float]]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dict."""
+        return asdict(self)

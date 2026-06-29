@@ -167,10 +167,10 @@ Secrets (e.g. a Hugging Face token) go in a local, git-ignored `.env`
 - [x] **Phase 0–1** — planning docs + project scaffold (SDK, CLI, config, tests)
 - [x] **Phase 2** — pipeline smoke test (0.5B model runs end-to-end on GPU)
 - [x] **Phase 3** — hardware report, 7B download, **baseline failure documented**
-- [~] **Phase 4** — **AirLLM runner done (7B runs!)**; quantization + benchmark harness next
+- [~] **Phase 4** — **AirLLM runner + benchmark harness done**; quantization (Q8/Q4) next
 - [ ] **Phase 5** — results notebook, economic analysis, final report
 
-**Quality gates (current):** ruff clean · 45 tests passing · 100 % coverage.
+**Quality gates (current):** ruff clean · 56 tests passing · 100 % coverage.
 
 ## License
 
