@@ -17,7 +17,7 @@ from pathlib import Path
 
 import torch
 
-from airllm_lab.services import metrics
+from airllm_lab.services import metrics, monitor
 from airllm_lab.services.models import RunConfig, RunResult
 
 # Map our quant labels to AirLLM's ``compression`` argument (4/8-bit need
@@ -50,12 +50,17 @@ class AirLLMRunner:
     """Runs layered AirLLM inference for a model that does not fit in VRAM."""
 
     def __init__(
-        self, shards_dir: str, hf_token: str | None = None, max_seq_len: int = 512
+        self,
+        shards_dir: str,
+        hf_token: str | None = None,
+        max_seq_len: int = 512,
+        power_watts: float = 65.0,
     ) -> None:
-        """Store the layer-shard output dir (on D:), HF token, and max seq len."""
+        """Store the layer-shard dir (on D:), HF token, seq len, and power draw."""
         self._shards_dir = shards_dir
         self._token = hf_token
         self._max_seq_len = max_seq_len
+        self._watts = power_watts
 
     def _load(self, cfg: RunConfig) -> tuple[object, str]:
         """Load the AirLLM model for ``cfg`` (splits layers to disk on first run)."""
@@ -87,21 +92,24 @@ class AirLLMRunner:
         n_in = int(ids.shape[-1])
         eos = tok.eos_token_id
 
-        start = time.perf_counter()
-        first_at, generated = start, []
-        for index in range(cfg.max_new_tokens):
-            out = model(input_ids=ids, use_cache=False, return_dict=True)
-            nxt = out.logits[:, -1, :].argmax(dim=-1, keepdim=True)
-            if index == 0:
-                first_at = time.perf_counter()
-            token_id = int(nxt.item())
-            generated.append(token_id)
-            ids = torch.cat([ids, nxt], dim=1)
-            if eos is not None and token_id == eos:
-                break
-        end = time.perf_counter()
+        monitor.reset_vram_peak()
+        with monitor.PeakRamSampler() as ram:
+            start = time.perf_counter()
+            first_at, generated = start, []
+            for index in range(cfg.max_new_tokens):
+                out = model(input_ids=ids, use_cache=False, return_dict=True)
+                nxt = out.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+                if index == 0:
+                    first_at = time.perf_counter()
+                token_id = int(nxt.item())
+                generated.append(token_id)
+                ids = torch.cat([ids, nxt], dim=1)
+                if eos is not None and token_id == eos:
+                    break
+            end = time.perf_counter()
 
         n_out = len(generated)
+        runtime = end - start
         return RunResult(
             model_id=cfg.model_id,
             mode="airllm",
@@ -111,7 +119,10 @@ class AirLLMRunner:
             n_output_tokens=n_out,
             ttft_s=round(metrics.time_to_first_token(start, first_at), 4),
             tpot_s=round(metrics.time_per_output_token(first_at, end, n_out), 4),
-            throughput_tok_s=round(metrics.throughput(n_out, end - start), 4),
-            runtime_s=round(end - start, 3),
+            throughput_tok_s=round(metrics.throughput(n_out, runtime), 4),
+            runtime_s=round(runtime, 3),
             output_text=tok.decode(generated, skip_special_tokens=True),
+            peak_ram_gb=ram.peak_gb,
+            peak_vram_gb=monitor.vram_peak_gb(),
+            energy_wh=metrics.energy_wh(runtime, self._watts),
         )

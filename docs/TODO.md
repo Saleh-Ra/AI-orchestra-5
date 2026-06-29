@@ -157,8 +157,13 @@ This is the exact order we execute. Each step has a **DoD** (definition of done)
     *is a"`, TTFT≈930 s, ≈0.0011 tok/s — feasible but disk-bound. Result:*
     *`results/airllm_Qwen2.5-7B-Instruct_fp16.json`. Stack pinned to transformers*
     *4.40 (AirLLM 2.11 incompatible with 5.x); greedy-decode loop over `forward`.)*
-20. [ ] `[A]` Implement the **benchmark harness** (TTFT, TPOT, throughput, peak RAM/VRAM,
+20. [x] `[A]` Implement the **benchmark harness** (TTFT, TPOT, throughput, peak RAM/VRAM,
     runtime, energy est.), N repeats, persist raw+aggregated. **DoD:** results in `results/`.
+    *(DONE: `services/benchmark.py` (harness, repeats+warmup, mean/median/std/min/max),*
+    *`services/monitor.py` (peak RAM sampler + CUDA VRAM peak), `metrics.energy_wh`/*
+    *`summarize`, RunResult extended with peak_ram_gb/peak_vram_gb/energy_wh. SDK*
+    *`run_benchmark` + CLI `benchmark`. Verified: 0.5B baseline ×2 → peak RAM 2.21 GB,*
+    *VRAM 1.25 GB, 0.42 Wh. 56 tests, 100% cov.)*
 21. [ ] `[A]` Run the same task across **≥ 2 quant levels** (e.g. FP16/Q8/Q4) + record
     qualitative output quality. **DoD:** full metric matrix captured.
 

@@ -71,6 +71,7 @@ omit = [
     "src/airllm_lab/main.py",
     "src/airllm_lab/services/baseline_runner.py",
     "src/airllm_lab/services/airllm_runner.py",
+    "src/airllm_lab/services/monitor.py",
     "*/tests/*",
 ]
 

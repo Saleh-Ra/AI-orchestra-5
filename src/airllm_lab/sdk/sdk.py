@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from airllm_lab.services.hardware import HardwareProbe, HardwareSpec
-from airllm_lab.services.models import RunConfig, RunResult
+from airllm_lab.services.models import BenchmarkSummary, RunConfig, RunResult
 from airllm_lab.shared.config import Config, load_config
 from airllm_lab.shared.storage import save_json
 from airllm_lab.shared.version import __version__
@@ -72,9 +72,13 @@ class LabSDK:
         from airllm_lab.services.baseline_runner import BaselineRunner
 
         try:
-            return BaselineRunner(hf_token=get_hf_token()).run(cfg)
+            return BaselineRunner(hf_token=get_hf_token(), power_watts=self._power_watts()).run(cfg)
         except Exception as exc:
             return RunResult.failed(cfg, error=f"{type(exc).__name__}: {exc}")
+
+    def _power_watts(self) -> float:
+        """Assumed average power draw (W) for energy estimates, from config."""
+        return float(self._config.get("measurement", {}).get("assumed_avg_power_watts", 65))
 
     def _run_config_for(
         self, model_id: str, max_cap: int, mode: str = "baseline", quant: str = "fp16"
@@ -123,10 +127,58 @@ class LabSDK:
         cfg = self._run_config_for(model_id, max_cap=max_cap, mode="airllm", quant=quant)
         shards_dir = storage.get("layer_shards_saving_path", "airllm_shards")
         try:
-            result = AirLLMRunner(shards_dir=shards_dir, hf_token=get_hf_token()).run(cfg)
+            runner = AirLLMRunner(
+                shards_dir=shards_dir, hf_token=get_hf_token(), power_watts=self._power_watts()
+            )
+            result = runner.run(cfg)
         except Exception as exc:
             result = RunResult.failed(cfg, error=f"{type(exc).__name__}: {exc}")
         name = Path(model_id).name or "model"
         save_json(Path(storage.get("results_dir", "results")) / f"airllm_{name}_{quant}.json",
                   result.to_dict())
         return result
+
+    def run_benchmark(
+        self,
+        model_id: str,
+        mode: str = "airllm",
+        quant: str = "fp16",
+        repeats: int = 1,
+        warmup: int = 0,
+        max_cap: int = 20,
+    ) -> BenchmarkSummary:
+        """Benchmark a model: run ``repeats`` times and persist raw + aggregates.
+
+        Picks the AirLLM or baseline runner by ``mode``, runs through the harness,
+        and writes ``<results_dir>/benchmark_<mode>_<name>_<quant>.json``.
+        """
+        from airllm_lab.shared.secrets import get_hf_token
+        from airllm_lab.shared.storage import configure_hf_cache
+
+        storage = self._config.get("storage", {})
+        configure_hf_cache(storage.get("hf_cache", "hf_cache"))
+        from airllm_lab.services.benchmark import BenchmarkHarness
+
+        token, watts = get_hf_token(), self._power_watts()
+        if mode == "airllm":
+            from airllm_lab.services.airllm_runner import AirLLMRunner
+
+            runner = AirLLMRunner(
+                shards_dir=storage.get("layer_shards_saving_path", "airllm_shards"),
+                hf_token=token,
+                power_watts=watts,
+            )
+            cfg = self._run_config_for(model_id, max_cap=max_cap, mode="airllm", quant=quant)
+        else:
+            from airllm_lab.services.baseline_runner import BaselineRunner
+
+            runner = BaselineRunner(hf_token=token, power_watts=watts)
+            cfg = self._run_config_for(model_id, max_cap=128, mode="baseline", quant=quant)
+
+        summary = BenchmarkHarness(runner).run(cfg, repeats=repeats, warmup=warmup)
+        name = Path(model_id).name or "model"
+        save_json(
+            Path(storage.get("results_dir", "results")) / f"benchmark_{mode}_{name}_{quant}.json",
+            summary.to_dict(),
+        )
+        return summary

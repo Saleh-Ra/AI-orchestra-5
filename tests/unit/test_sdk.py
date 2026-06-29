@@ -61,7 +61,7 @@ def test_run_baseline_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: dict[str, Any] = {}
 
     class _FakeRunner:
-        def __init__(self, hf_token: str | None = None) -> None:
+        def __init__(self, hf_token: str | None = None, power_watts: float = 65.0) -> None:
             seen["token"] = hf_token
 
         def run(self, cfg: RunConfig) -> RunResult:
@@ -134,7 +134,8 @@ def test_run_airllm_delegates_and_persists(
     seen: dict[str, Any] = {}
 
     class _FakeRunner:
-        def __init__(self, shards_dir: str, hf_token: str | None = None) -> None:
+        def __init__(self, shards_dir: str, hf_token: str | None = None,
+                     power_watts: float = 65.0) -> None:
             seen["shards_dir"] = shards_dir
             seen["token"] = hf_token
 
@@ -168,7 +169,8 @@ def test_run_airllm_captures_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     import airllm_lab.shared.storage as storage
 
     class _BoomRunner:
-        def __init__(self, shards_dir: str, hf_token: str | None = None) -> None:
+        def __init__(self, shards_dir: str, hf_token: str | None = None,
+                     power_watts: float = 65.0) -> None:
             pass
 
         def run(self, cfg: RunConfig) -> RunResult:
@@ -184,6 +186,70 @@ def test_run_airllm_captures_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert "airllm boom" in result.error
 
 
+def test_run_benchmark_airllm_persists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_benchmark builds the AirLLM runner, runs the harness, and persists."""
+    import json
+
+    import airllm_lab.services.airllm_runner as ar
+    import airllm_lab.shared.secrets as secrets
+    import airllm_lab.shared.storage as storage
+
+    class _OneRunner:
+        def __init__(self, shards_dir: str, hf_token: str | None = None,
+                     power_watts: float = 65.0) -> None:
+            pass
+
+        def run(self, cfg: RunConfig) -> RunResult:
+            return _fake_result()
+
+    monkeypatch.setattr(storage, "configure_hf_cache", lambda p: Path(p))
+    monkeypatch.setattr(secrets, "get_hf_token", lambda: "tok")
+    monkeypatch.setattr(ar, "AirLLMRunner", _OneRunner)
+
+    raw = {
+        "version": __version__,
+        "experiment": {"prompt": "P", "max_new_tokens": 200},
+        "storage": {"layer_shards_saving_path": "D:/s", "results_dir": str(tmp_path)},
+        "measurement": {"assumed_avg_power_watts": 50},
+    }
+    summary = _sdk(raw).run_benchmark("D:/models/Qwen2.5-7B-Instruct", mode="airllm", repeats=2)
+    assert summary.repeats == 2
+    assert summary.n_ok == 2
+    saved = json.loads(
+        (tmp_path / "benchmark_airllm_Qwen2.5-7B-Instruct_fp16.json").read_text("utf-8")
+    )
+    assert saved["repeats"] == 2
+
+
+def test_run_benchmark_baseline_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """mode='baseline' selects the BaselineRunner path."""
+    import airllm_lab.services.baseline_runner as br
+    import airllm_lab.shared.secrets as secrets
+    import airllm_lab.shared.storage as storage
+
+    seen: dict[str, Any] = {}
+
+    class _OneRunner:
+        def __init__(self, hf_token: str | None = None, power_watts: float = 65.0) -> None:
+            seen["watts"] = power_watts
+
+        def run(self, cfg: RunConfig) -> RunResult:
+            seen["mode"] = cfg.mode
+            return _fake_result()
+
+    monkeypatch.setattr(storage, "configure_hf_cache", lambda p: Path(p))
+    monkeypatch.setattr(secrets, "get_hf_token", lambda: None)
+    monkeypatch.setattr(br, "BaselineRunner", _OneRunner)
+
+    raw = {"version": __version__, "storage": {"results_dir": str(tmp_path)},
+           "measurement": {"assumed_avg_power_watts": 42}}
+    _sdk(raw).run_benchmark("org/7b", mode="baseline", repeats=1)
+    assert seen["mode"] == "baseline"
+    assert seen["watts"] == 42.0
+
+
 def test_run_baseline_captures_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """A runner exception becomes a failed RunResult, not a raise."""
     import airllm_lab.services.baseline_runner as br
@@ -191,7 +257,7 @@ def test_run_baseline_captures_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     import airllm_lab.shared.storage as storage
 
     class _BoomRunner:
-        def __init__(self, hf_token: str | None = None) -> None:
+        def __init__(self, hf_token: str | None = None, power_watts: float = 65.0) -> None:
             pass
 
         def run(self, cfg: RunConfig) -> RunResult:

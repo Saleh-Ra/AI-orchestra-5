@@ -27,6 +27,13 @@ def build_parser() -> argparse.ArgumentParser:
     air.add_argument("model", help="local model dir or HF id (must have a sharded index)")
     air.add_argument("--quant", default="fp16", choices=["fp16", "8bit", "4bit"])
     air.add_argument("--max-tokens", type=int, default=20, help="cap on generated tokens")
+    bench = sub.add_parser("benchmark", help="benchmark a model over N repeats")
+    bench.add_argument("model", help="local model dir or HF id")
+    bench.add_argument("--mode", default="airllm", choices=["airllm", "baseline"])
+    bench.add_argument("--quant", default="fp16", choices=["fp16", "8bit", "4bit"])
+    bench.add_argument("--repeats", type=int, default=1)
+    bench.add_argument("--warmup", type=int, default=0)
+    bench.add_argument("--max-tokens", type=int, default=20, help="cap on generated tokens")
     return parser
 
 
@@ -45,6 +52,12 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "airllm":
         result = sdk.run_airllm(args.model, quant=args.quant, max_cap=args.max_tokens)
         print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    elif args.command == "benchmark":
+        summary = sdk.run_benchmark(
+            args.model, mode=args.mode, quant=args.quant,
+            repeats=args.repeats, warmup=args.warmup, max_cap=args.max_tokens,
+        )
+        print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))
     else:
         print(f"airllm-lab v{sdk.version}")
 

@@ -15,7 +15,7 @@ import psutil
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
-from airllm_lab.services import metrics
+from airllm_lab.services import metrics, monitor
 from airllm_lab.services.feasibility import baseline_fits, weights_size_bytes
 from airllm_lab.services.models import RunConfig, RunResult
 
@@ -23,9 +23,10 @@ from airllm_lab.services.models import RunConfig, RunResult
 class BaselineRunner:
     """Loads a model via Transformers and generates with per-token timing."""
 
-    def __init__(self, hf_token: str | None = None) -> None:
-        """Store the optional Hugging Face token used for downloads."""
+    def __init__(self, hf_token: str | None = None, power_watts: float = 65.0) -> None:
+        """Store the HF token and the assumed power draw for energy estimates."""
         self._token = hf_token
+        self._watts = power_watts
 
     def run(self, cfg: RunConfig) -> RunResult:
         """Load the model, stream a generation, and return measured metrics.
@@ -69,18 +70,21 @@ class BaselineRunner:
         }
 
         thread = threading.Thread(target=model.generate, kwargs=gen_kwargs)
-        start = time.perf_counter()
-        thread.start()
-        first_at, pieces = start, []
-        for index, piece in enumerate(streamer):
-            if index == 0:
-                first_at = time.perf_counter()
-            pieces.append(piece)
-        end = time.perf_counter()
-        thread.join()
+        monitor.reset_vram_peak()
+        with monitor.PeakRamSampler() as ram:
+            start = time.perf_counter()
+            thread.start()
+            first_at, pieces = start, []
+            for index, piece in enumerate(streamer):
+                if index == 0:
+                    first_at = time.perf_counter()
+                pieces.append(piece)
+            end = time.perf_counter()
+            thread.join()
 
         text = "".join(pieces)
         n_out = len(tokenizer(text, add_special_tokens=False).input_ids)
+        runtime = end - start
         return RunResult(
             model_id=cfg.model_id,
             mode=cfg.mode,
@@ -90,7 +94,10 @@ class BaselineRunner:
             n_output_tokens=n_out,
             ttft_s=round(metrics.time_to_first_token(start, first_at), 4),
             tpot_s=round(metrics.time_per_output_token(first_at, end, n_out), 4),
-            throughput_tok_s=round(metrics.throughput(n_out, end - start), 2),
-            runtime_s=round(end - start, 3),
+            throughput_tok_s=round(metrics.throughput(n_out, runtime), 2),
+            runtime_s=round(runtime, 3),
             output_text=text,
+            peak_ram_gb=ram.peak_gb,
+            peak_vram_gb=monitor.vram_peak_gb(),
+            energy_wh=metrics.energy_wh(runtime, self._watts),
         )

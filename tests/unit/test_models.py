@@ -1,6 +1,6 @@
 """Tests for the domain dataclasses."""
 
-from airllm_lab.services.models import RunConfig, RunResult
+from airllm_lab.services.models import BenchmarkSummary, RunConfig, RunResult
 
 
 def test_run_config_defaults() -> None:
@@ -30,6 +30,27 @@ def test_run_result_to_dict_roundtrip() -> None:
     assert data["output_text"] == "hello"
     assert data["ok"] is True
     assert set(data) >= {"ttft_s", "tpot_s", "throughput_tok_s", "device"}
+    # New measurement fields default to zero and serialize.
+    assert data["peak_ram_gb"] == 0.0
+    assert data["peak_vram_gb"] == 0.0
+    assert data["energy_wh"] == 0.0
+
+
+def test_benchmark_summary_to_dict() -> None:
+    """BenchmarkSummary serializes its runs and aggregates."""
+    summary = BenchmarkSummary(
+        model_id="m",
+        mode="airllm",
+        quant="fp16",
+        repeats=2,
+        n_ok=2,
+        runs=[{"runtime_s": 1.0}, {"runtime_s": 3.0}],
+        aggregates={"runtime_s": {"mean": 2.0}},
+    )
+    data = summary.to_dict()
+    assert data["n_ok"] == 2
+    assert data["aggregates"]["runtime_s"]["mean"] == 2.0
+    assert len(data["runs"]) == 2
 
 
 def test_run_result_failed_factory() -> None:

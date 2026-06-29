@@ -33,3 +33,35 @@ def test_throughput_tokens_per_second() -> None:
 def test_throughput_zero_runtime() -> None:
     """Zero runtime yields zero throughput (no divide-by-zero)."""
     assert metrics.throughput(100, 0.0) == 0.0
+
+
+def test_energy_wh_power_times_time() -> None:
+    """Energy is watts × hours: 3600 s at 65 W = 65 Wh."""
+    assert metrics.energy_wh(3600.0, 65.0) == pytest.approx(65.0)
+
+
+def test_energy_wh_zero_for_nonpositive() -> None:
+    """Non-positive runtime or watts yields zero energy."""
+    assert metrics.energy_wh(0.0, 65.0) == 0.0
+    assert metrics.energy_wh(10.0, 0.0) == 0.0
+
+
+def test_summarize_empty_is_zeros() -> None:
+    """Summarizing an empty list returns zeroed stats."""
+    assert metrics.summarize([]) == {"mean": 0.0, "median": 0.0, "std": 0.0, "min": 0.0, "max": 0.0}
+
+
+def test_summarize_odd_count() -> None:
+    """Median of an odd-length list is the middle value."""
+    out = metrics.summarize([3.0, 1.0, 2.0])
+    assert out["mean"] == pytest.approx(2.0)
+    assert out["median"] == pytest.approx(2.0)
+    assert out["min"] == 1.0
+    assert out["max"] == 3.0
+
+
+def test_summarize_even_count_averages_middle() -> None:
+    """Median of an even-length list averages the two middle values."""
+    out = metrics.summarize([1.0, 2.0, 3.0, 4.0])
+    assert out["median"] == pytest.approx(2.5)
+    assert out["std"] == pytest.approx(1.1180, abs=1e-3)
