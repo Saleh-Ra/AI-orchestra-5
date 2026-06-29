@@ -181,7 +181,43 @@ the GPU) is its bottleneck.
 The full narrative — tables, charts, and the concept walkthrough — lives in the
 reproducible analysis notebook: [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb).
 
-## 4. How the code is organized
+## 4. The six research questions, answered
+
+**1. What is the bottleneck blocking direct execution — memory or compute?**
+**Memory.** The 7B's ~15 GB of FP16 weights exceed both the 4 GB VRAM and the
+~8 GB of free RAM, so the naive load thrashed swap and crashed (Stage 1). The
+roofline (extension) confirms it: every run sits far below the compute roof, on
+the *bandwidth* roof — never compute-limited.
+
+**2. How does AirLLM change resource allocation, and how does it relate to virtual
+memory / OS paging?** AirLLM keeps weights on disk and loads **one layer at a
+time** (load → compute → free), so peak memory is ~a single layer instead of the
+whole model. This is exactly **OS paging / virtual memory** made literal: disk is
+used as an extension of memory, trading latency for capacity.
+
+**3. Impact of quantization on memory, speed, and quality — where is the accuracy
+"red line"?** Fewer bits ⇒ fewer bytes streamed per layer ⇒ faster: **INT8 ≈ 8×**
+and **INT4 ≈ 21×** vs FP16, at ~2 GB VRAM (Stage 3). The **red line is INT4**:
+FP16 and INT8 stay coherent (`"Virtual memory is a"`), INT4 degrades
+(`"Sure memory, in"`). **INT8 is the sweet spot.**
+
+**4. How do Prefill vs Decode show up across TTFT and TPOT?** **TTFT** times the
+parallel, compute-heavy **prefill** (building the KV-cache); **TPOT** times the
+per-token **decode**, which is memory-bandwidth-bound. On AirLLM both are inflated
+because each step streams layer weights from the HDD.
+
+**5. What latency/throughput price is paid to run a big model on modest hardware?**
+A steep one: vs a model that *fits*, AirLLM throughput drops up to **~5,000×**
+(FP16: ~930 s to first token, ~0.0011 tok/s). Quantization recovers an order of
+magnitude, but it remains a correctness demo, not a serving solution (Stage 4).
+
+**6. When is OnPrem cheaper than an external API?** Rarely, at this scale. Even
+with a generous local-runtime assumption, OnPrem only beats the API past
+**~239,000 requests/month**; with the *measured* AirLLM runtime it **never** breaks
+even (Stage 5). Choose **API for cost/latency; local only for privacy or offline**
+requirements.
+
+## 5. How the code is organized
 
 A single **SDK facade** (`LabSDK`) is the one entry point; the CLI and notebooks
 call it, never the internals (keeps business logic in one place).
@@ -202,7 +238,7 @@ docs/             PRD, PLAN, per-mechanism PRDs, working map
 tests/            unit + integration tests (100 % coverage today)
 ```
 
-## 5. Try it yourself
+## 6. Try it yourself
 
 ```bash
 uv sync                                     # set up env + install deps
@@ -222,7 +258,7 @@ uv run airllm-lab roofline                   # render the roofline (extension)
 Secrets (e.g. a Hugging Face token) go in a local, git-ignored `.env`
 (see `.env.example`). Large model files are kept off the small `C:` drive.
 
-## 6. Planning & design documents
+## 7. Planning & design documents
 
 | Document | Purpose |
 |----------|---------|
@@ -233,18 +269,20 @@ Secrets (e.g. a Hugging Face token) go in a local, git-ignored `.env`
 | [`docs/PRD_quantization.md`](docs/PRD_quantization.md) | Quantization mechanism |
 | [`docs/PRD_benchmark.md`](docs/PRD_benchmark.md) | Benchmarking & metrics |
 | [`docs/PRD_cost_model.md`](docs/PRD_cost_model.md) | OnPrem vs API cost model |
+| [`docs/PROMPT_BOOK.md`](docs/PROMPT_BOOK.md) | Log of significant AI prompts used to build this |
 
-## 7. Progress
+## 8. Progress
 
 - [x] **Phase 0–1** — planning docs + project scaffold (SDK, CLI, config, tests)
 - [x] **Phase 2** — pipeline smoke test (0.5B model runs end-to-end on GPU)
 - [x] **Phase 3** — hardware report, 7B download, **baseline failure documented**
 - [x] **Phase 4** — **AirLLM runner, benchmark harness, and FP16/INT8/INT4 quant matrix done**
 - [x] **Phase 5** — **cost model, charts, analysis notebook, and roofline extension done**
-- [ ] **Phase 6** — final report polish, quality pass, submission
+- [x] **Phase 6** — report finalized (research questions, LICENSE, Prompt Book); awaiting review & submission
 
-**Quality gates (current):** ruff clean · 69 tests passing · 100 % coverage.
+**Quality gates (current):** ruff clean · 69 tests passing · 100 % coverage · every
+Python file ≤ 150 lines · secrets via `.env` · `uv`-managed.
 
 ## License
 
-MIT (see `LICENSE`, to be added).
+MIT — see [`LICENSE`](LICENSE).
