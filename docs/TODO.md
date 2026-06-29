@@ -80,7 +80,8 @@
 - [ ] Versioning starts at `1.00` (`version.py`, JSON `version`, `rate_limits.version`);
       validate config version at startup.
 - [ ] Clean Git history (meaningful commits, feature branches, tags for versions).
-- [ ] Maintain a **Prompt Book** (log of significant AI prompts: context, goal, outputs).
+- [x] Maintain a **Prompt Book** (log of significant AI prompts: context, goal, outputs).
+      *(DONE: `docs/PROMPT_BOOK.md`.)*
 
 ### G. Research, visualization, costs
 - [ ] Systematic parameter/sensitivity analysis (e.g. OAT across quantization levels).
@@ -197,9 +198,14 @@ This is the exact order we execute. Each step has a **DoD** (definition of done)
     *the disk roof. Result: `assets/roofline.png`. 69 tests, ruff clean, 100% cov.)*
 
 ### Phase 6 — Report & submission  (Milestone M6)
-26. [ ] `[A]` Write the deep-dive **`README.md`** (install, usage, findings, economic
+26. [x] `[A]` Write the deep-dive **`README.md`** (install, usage, findings, economic
     analysis, concept analysis, embedded graphs/tables/screenshots, reproduce steps).
     **DoD:** README answers all 6 research questions.
-27. [ ] `[A]` Final pass: ruff clean, coverage ≥ 85%, Prompt Book updated, Git tidy.
+    *(DONE: README §4 answers all six research questions explicitly; findings,*
+    *economic analysis, and concept analysis embedded with figures; usage + reproduce*
+    *steps in §6.)*
+27. [x] `[A]` Final pass: ruff clean, coverage ≥ 85%, Prompt Book updated, Git tidy.
     **DoD:** final checklist (guidelines §17) all green.
+    *(DONE: ruff clean, 69 tests, 100% coverage, all files ≤150 lines; `LICENSE`*
+    *added; `docs/PROMPT_BOOK.md` written. Git history is the human's to finalize.)*
 28. [ ] `[U]` Final review & submit. **DoD:** you approve the repo for submission.
