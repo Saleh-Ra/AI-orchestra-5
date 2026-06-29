@@ -24,5 +24,31 @@
     "memory_sampling_interval_sec": 0.2,
     "warmup_runs": 1,
     "assumed_avg_power_watts": 65
+  },
+  "cost": {
+    "currency": "USD",
+    "as_of": "2026-06 (modeled, illustrative prices)",
+    "api_pricing_per_mtok": { "input": 0.15, "cached_input": 0.075, "output": 0.6 },
+    "onprem": {
+      "capex_usd": 1500,
+      "lifetime_months": 36,
+      "electricity_per_kwh": 0.15,
+      "maintenance_per_month": 0,
+      "avg_power_watts": 65
+    },
+    "cloud_gpu": { "usd_per_hour": 0.5 },
+    "usage": {
+      "requests_per_month": 10000,
+      "avg_input_tokens": 500,
+      "avg_output_tokens": 300,
+      "cached_fraction": 0.0,
+      "runtime_s_per_request": 30
+    }
+  },
+  "roofline": {
+    "gpu_peak_gflops_fp16": 2900,
+    "gpu_mem_bandwidth_gb_s": 128,
+    "disk_read_gb_s": 0.12,
+    "decode_intensity_flops_per_byte": 1.0
   }
 }

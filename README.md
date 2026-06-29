@@ -107,17 +107,60 @@ Store weights in fewer bits (FP16 → INT8 → INT4). Less data means less memor
 less disk traffic, so it runs smaller and faster — until precision drops too far
 and answer quality degrades (the "accuracy red line" we'll measure).
 
-### Stage 4 — Benchmarking 🔜
+### Stage 4 — Benchmarking ✅ done
 
-For each configuration we record:
-- **TTFT** (time to first token) — the compute-bound *prefill* phase.
-- **TPOT** (time per output token) — the memory-bandwidth-bound *decode* phase.
-- **Throughput** (tokens/sec), **peak RAM/VRAM**, total runtime, energy estimate.
+A reusable harness (`services/benchmark.py`) runs each configuration *N* times
+(with optional warm-ups) and aggregates **mean/median/std/min/max** for every
+metric. For each run we record **TTFT** (compute-bound *prefill*), **TPOT**
+(memory-bandwidth-bound *decode*), **throughput**, **peak RAM/VRAM** (sampled on a
+background thread), total runtime, and an energy estimate.
 
-### Stage 5 — Economic analysis 🔜
+Plotting the fitting **0.5B baseline** against the **7B AirLLM** run on a log axis
+shows the cost of layered, disk-streamed inference — a **~5,000×** drop in
+throughput:
 
-Compare the real cost of running locally (hardware + electricity + time) against
-calling a hosted API per token, and find the break-even point.
+![Throughput comparison](assets/throughput.png)
+![Time to first token](assets/ttft.png)
+
+Memory tells the other half of the story: AirLLM's peak stays bounded by a single
+layer, which is the whole reason a 7B model fits at all.
+
+![Peak memory footprint](assets/memory.png)
+
+### Stage 5 — Economic analysis ✅ done
+
+The cost model (`services/cost_model.py`, all assumptions in
+[`config/setup.json`](config/setup.json)) compares three options against monthly
+volume and solves for the **break-even** — saved to
+[`results/cost_analysis.json`](results/cost_analysis.json):
+
+| Option | Per request | Monthly @ 10k req |
+|--------|-------------|-------------------|
+| Hosted API | **$0.000255** | **$2.55** |
+| OnPrem (CAPEX + energy) | $0.004248 | $42.48 |
+| Cloud GPU | $0.004167 | $41.67 |
+
+![Break-even curve](assets/cost_breakeven.png)
+
+Even with a *generous* "efficient local" assumption (30 s/request), OnPrem only
+overtakes the API at **~239,000 requests/month**. With the **measured** AirLLM 7B
+runtime (thousands of seconds/request), local **energy alone** exceeds the API
+price, so it **never breaks even**. The honest recommendation: **API on cost and
+latency; local only when data privacy or offline operation is a hard requirement.**
+
+### Extension — Roofline analysis ⭐
+
+Our original extension answers *why* everything is slow with a **roofline model**.
+Attainable performance is bounded by `min(peak_compute, bandwidth × intensity)`.
+LLM decode has an intensity of ~1 FLOP/byte, so it lives on the slanted
+*bandwidth* roof — never near the compute roof. Both runs are pinned far below
+peak FLOP/s; the 7B AirLLM point sits on the **disk** roof, proving the HDD (not
+the GPU) is its bottleneck.
+
+![Roofline](assets/roofline.png)
+
+The full narrative — tables, charts, and the concept walkthrough — lives in the
+reproducible analysis notebook: [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb).
 
 ## 4. How the code is organized
 
@@ -127,12 +170,15 @@ call it, never the internals (keeps business logic in one place).
 ```
 src/airllm_lab/
   sdk/            LabSDK facade — the only public entry point
-  services/       hardware probe, model download, baseline runner,
-                  metrics, feasibility check  (AirLLM + benchmark land here)
+  services/       hardware probe, model download, baseline + AirLLM runners,
+                  benchmark harness, metrics, monitor, feasibility,
+                  cost_model, charts, roofline
   shared/         config, secrets (.env), storage/paths, version
   main.py         thin CLI
 config/           versioned JSON config (no hardcoded values)
-results/          saved measurements (hardware, baseline, benchmarks)
+results/          saved measurements (hardware, baseline, benchmarks, cost)
+assets/           generated figures (throughput, latency, memory, cost, roofline)
+notebooks/        analysis.ipynb — reproducible results & concept walkthrough
 docs/             PRD, PLAN, per-mechanism PRDs, working map
 tests/            unit + integration tests (100 % coverage today)
 ```
@@ -145,6 +191,13 @@ uv run airllm-lab hardware                  # probe + save this machine's spec
 uv run airllm-lab smoke                     # run a tiny 0.5B model end-to-end
 uv run airllm-lab download Qwen/Qwen2.5-7B-Instruct   # fetch the big model to D:
 uv run airllm-lab baseline <path-to-model>  # the (failing) naive baseline
+uv run airllm-lab airllm <path-to-model>    # layered inference that actually runs
+uv run airllm-lab benchmark <path-to-model> --repeats 3   # N runs + aggregates
+
+uv sync --extra viz                         # add the plotting/notebook deps
+uv run airllm-lab cost                       # economic break-even analysis
+uv run airllm-lab charts                     # render figures into assets/
+uv run airllm-lab roofline                   # render the roofline (extension)
 ```
 
 Secrets (e.g. a Hugging Face token) go in a local, git-ignored `.env`
@@ -168,9 +221,10 @@ Secrets (e.g. a Hugging Face token) go in a local, git-ignored `.env`
 - [x] **Phase 2** — pipeline smoke test (0.5B model runs end-to-end on GPU)
 - [x] **Phase 3** — hardware report, 7B download, **baseline failure documented**
 - [~] **Phase 4** — **AirLLM runner + benchmark harness done**; quantization (Q8/Q4) next
-- [ ] **Phase 5** — results notebook, economic analysis, final report
+- [x] **Phase 5** — **cost model, charts, analysis notebook, and roofline extension done**
+- [ ] **Phase 6** — final report polish, quality pass, submission
 
-**Quality gates (current):** ruff clean · 56 tests passing · 100 % coverage.
+**Quality gates (current):** ruff clean · 69 tests passing · 100 % coverage.
 
 ## License
 
