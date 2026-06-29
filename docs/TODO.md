@@ -168,12 +168,27 @@ This is the exact order we execute. Each step has a **DoD** (definition of done)
     qualitative output quality. **DoD:** full metric matrix captured.
 
 ### Phase 5 — Analysis & visualization  (Milestone M5)
-22. [ ] `[A]` Implement the **cost model** (API tokens×price incl. prompt-caching; OnPrem
+22. [x] `[A]` Implement the **cost model** (API tokens×price incl. prompt-caching; OnPrem
     CAPEX+OPEX; optional Cloud-GPU) → break-even. **DoD:** break-even point computed.
-23. [ ] `[A]` Generate all **charts** to `assets/` from stored results. **DoD:** figures render.
-24. [ ] `[A]` Build the **analysis notebook** (`notebooks/`) tying results to execution
+    *(DONE: `services/cost_model.py` (pure, dataclasses + functions), config `cost`*
+    *section (dated assumptions), `LabSDK.run_cost_analysis` + CLI `cost`. Result:*
+    *`results/cost_analysis.json`. Break-even ≈ 239k req/mo at 30 s/request; with the*
+    *measured AirLLM runtime, local energy alone beats no API → never breaks even.*
+    *8 unit tests vs hand-computed values.)*
+23. [x] `[A]` Generate all **charts** to `assets/` from stored results. **DoD:** figures render.
+    *(DONE: `services/charts.py` (matplotlib, auto-discovers benchmark/airllm/baseline*
+    *artifacts), `LabSDK.generate_charts` + CLI `charts`. Renders throughput.png,*
+    *ttft.png, memory.png, cost_breakeven.png.)*
+24. [x] `[A]` Build the **analysis notebook** (`notebooks/`) tying results to execution
     concepts (Prefill/Decode, compute/memory-bound, paging). **DoD:** notebook runs top-to-bottom.
-25. [ ] `[A]` Implement the **original extension** chosen in step 5. **DoD:** extension produces a result.
+    *(DONE: `notebooks/analysis.ipynb` — loads artifacts, rebuilds cost+charts via the*
+    *SDK, explains prefill/decode, paging, memory, economics. Executed end-to-end with*
+    *nbconvert --execute (exit 0).)*
+25. [x] `[A]` Implement the **original extension** chosen in step 5. **DoD:** extension produces a result.
+    *(DONE: **Roofline model** — `services/roofline.py` + `LabSDK.generate_roofline` +*
+    *CLI `roofline` + config `roofline` peaks. Plots GPU-mem/disk/compute roofs and*
+    *places each run at its achieved GFLOP/s → both memory-bound; 7B AirLLM pinned to*
+    *the disk roof. Result: `assets/roofline.png`. 69 tests, ruff clean, 100% cov.)*
 
 ### Phase 6 — Report & submission  (Milestone M6)
 26. [ ] `[A]` Write the deep-dive **`README.md`** (install, usage, findings, economic

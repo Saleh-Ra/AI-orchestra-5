@@ -34,6 +34,10 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("--repeats", type=int, default=1)
     bench.add_argument("--warmup", type=int, default=0)
     bench.add_argument("--max-tokens", type=int, default=20, help="cap on generated tokens")
+    cost = sub.add_parser("cost", help="compute the OnPrem vs API vs Cloud cost report")
+    cost.add_argument("--runtime", type=float, default=None, help="measured local s per request")
+    sub.add_parser("charts", help="render figures from stored results into assets/")
+    sub.add_parser("roofline", help="render the roofline figure (original extension)")
     return parser
 
 
@@ -58,6 +62,13 @@ def main(argv: list[str] | None = None) -> None:
             repeats=args.repeats, warmup=args.warmup, max_cap=args.max_tokens,
         )
         print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))
+    elif args.command == "cost":
+        print(json.dumps(sdk.run_cost_analysis(runtime_s=args.runtime).to_dict(),
+                         indent=2, ensure_ascii=False))
+    elif args.command == "charts":
+        print("\n".join(sdk.generate_charts()))
+    elif args.command == "roofline":
+        print(sdk.generate_roofline() or "no run data for roofline")
     else:
         print(f"airllm-lab v{sdk.version}")
 

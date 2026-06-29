@@ -250,6 +250,92 @@ def test_run_benchmark_baseline_mode(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert seen["watts"] == 42.0
 
 
+def test_run_cost_analysis_persists(tmp_path: Path) -> None:
+    """run_cost_analysis builds a report from config and writes cost_analysis.json."""
+    import json
+
+    raw = {
+        "version": __version__,
+        "storage": {"results_dir": str(tmp_path)},
+        "cost": {
+            "api_pricing_per_mtok": {"input": 1.0, "output": 2.0, "cached_input": 0.5},
+            "onprem": {
+                "capex_usd": 3600, "lifetime_months": 36,
+                "electricity_per_kwh": 0.15, "avg_power_watts": 65,
+            },
+            "cloud_gpu": {"usd_per_hour": 0.5},
+            "usage": {
+                "requests_per_month": 100, "avg_input_tokens": 1000,
+                "avg_output_tokens": 1000, "cached_fraction": 0.0,
+                "runtime_s_per_request": 30,
+            },
+        },
+    }
+    report = _sdk(raw).run_cost_analysis()
+    assert report.api_per_request == pytest.approx(0.003)
+    saved = json.loads((tmp_path / "cost_analysis.json").read_text("utf-8"))
+    assert saved["assumptions"]["runtime_s_per_request"] == 30
+    assert "breakeven_requests_per_month" in saved
+
+
+def test_run_cost_analysis_runtime_override(tmp_path: Path) -> None:
+    """An explicit runtime overrides the config default in the report."""
+    raw = {"version": __version__, "storage": {"results_dir": str(tmp_path)},
+           "cost": {"usage": {"runtime_s_per_request": 30}}}
+    report = _sdk(raw).run_cost_analysis(runtime_s=99.0)
+    assert report.assumptions["runtime_s_per_request"] == 99.0
+
+
+def test_generate_charts_delegates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """generate_charts forwards the configured dirs and returns string paths."""
+    from airllm_lab.services import charts
+
+    captured: dict[str, Path] = {}
+
+    def fake_render_all(results_dir: Path, out_dir: Path) -> list[Path]:
+        captured["results"], captured["assets"] = results_dir, out_dir
+        return [out_dir / "throughput.png"]
+
+    monkeypatch.setattr(charts, "render_all", fake_render_all)
+    raw = {
+        "version": __version__,
+        "storage": {"results_dir": str(tmp_path / "r"), "assets_dir": str(tmp_path / "a")},
+    }
+    out = _sdk(raw).generate_charts()
+    assert captured["results"] == Path(str(tmp_path / "r"))
+    assert out == [str(tmp_path / "a" / "throughput.png")]
+
+
+def test_generate_roofline_delegates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """generate_roofline forwards config peaks/dirs and returns a string path."""
+    from airllm_lab.services import roofline
+
+    captured: dict[str, object] = {}
+
+    def fake_render(results_dir: Path, out_dir: Path, peaks: dict[str, float]) -> Path:
+        captured["peaks"] = peaks
+        return out_dir / "roofline.png"
+
+    monkeypatch.setattr(roofline, "render_roofline", fake_render)
+    raw = {
+        "version": __version__,
+        "storage": {"results_dir": str(tmp_path), "assets_dir": str(tmp_path)},
+        "roofline": {"gpu_peak_gflops_fp16": 2900},
+    }
+    out = _sdk(raw).generate_roofline()
+    assert captured["peaks"] == {"gpu_peak_gflops_fp16": 2900}
+    assert out == str(tmp_path / "roofline.png")
+
+
+def test_generate_roofline_none_when_no_data(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When the renderer finds no run data, the SDK returns None."""
+    from airllm_lab.services import roofline
+
+    monkeypatch.setattr(roofline, "render_roofline", lambda *a, **k: None)
+    raw = {"version": __version__, "storage": {"results_dir": str(tmp_path)}}
+    assert _sdk(raw).generate_roofline() is None
+
+
 def test_run_baseline_captures_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """A runner exception becomes a failed RunResult, not a raise."""
     import airllm_lab.services.baseline_runner as br
