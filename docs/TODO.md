@@ -164,8 +164,14 @@ This is the exact order we execute. Each step has a **DoD** (definition of done)
     *`summarize`, RunResult extended with peak_ram_gb/peak_vram_gb/energy_wh. SDK*
     *`run_benchmark` + CLI `benchmark`. Verified: 0.5B baseline ×2 → peak RAM 2.21 GB,*
     *VRAM 1.25 GB, 0.42 Wh. 56 tests, 100% cov.)*
-21. [ ] `[A]` Run the same task across **≥ 2 quant levels** (e.g. FP16/Q8/Q4) + record
+21. [x] `[A]` Run the same task across **≥ 2 quant levels** (e.g. FP16/Q8/Q4) + record
     qualitative output quality. **DoD:** full metric matrix captured.
+    *(DONE: added `bitsandbytes==0.49.2`; ran the 7B on the same prompt at FP16/INT8/*
+    *INT4. Matrix — TTFT 930/142/109 s, throughput 0.0011/0.0088/0.0236 tok/s (INT4*
+    *≈21× FP16), peak VRAM ~2.1–2.7 GB. Quality: FP16 & INT8 → "Virtual memory is a"*
+    *(coherent); INT4 → "Sure memory, in" (degraded) = the accuracy red line. INT8 is*
+    *the sweet spot. Results: `results/airllm_Qwen2.5-7B-Instruct_{8bit,4bit}.json`;*
+    *charts + roofline regenerated with the full matrix.)*
 
 ### Phase 5 — Analysis & visualization  (Milestone M5)
 22. [x] `[A]` Implement the **cost model** (API tokens×price incl. prompt-caching; OnPrem

@@ -12,6 +12,7 @@ authors = [{ name = "AirLLM Lab" }]
 dependencies = [
     "accelerate==0.30.1",
     "airllm==2.11.0",
+    "bitsandbytes>=0.49.2",
     "huggingface-hub==0.23.4",
     "optimum==1.19.2",
     "psutil>=5.9",
