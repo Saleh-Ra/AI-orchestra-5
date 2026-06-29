@@ -101,11 +101,30 @@ heavy per-token disk I/O. The next stages attack that slowness with quantization
 > model's `forward` (in `services/airllm_runner.py`) rather than `transformers`'
 > `generate`, whose newer KV-cache API AirLLM does not support.
 
-### Stage 3 — Quantization 🔜
+### Stage 3 — Quantization ✅ done
 
-Store weights in fewer bits (FP16 → INT8 → INT4). Less data means less memory and
-less disk traffic, so it runs smaller and faster — until precision drops too far
-and answer quality degrades (the "accuracy red line" we'll measure).
+Storing weights in fewer bits (FP16 → INT8 → INT4) means **fewer bytes to stream
+per layer** — and since AirLLM is disk-bandwidth-bound, that translates almost
+directly into speed. Running the *same* prompt on the 7B model at each precision
+(via `bitsandbytes`):
+
+| Precision | TTFT | TPOT | Throughput | Runtime (4 tok) | Peak VRAM | Output quality |
+|-----------|-----:|-----:|-----------:|----------------:|----------:|----------------|
+| FP16 | 930 s | 923 s | 0.0011 tok/s | 3699 s | — | `"Virtual memory is a"` ✅ |
+| **INT8** | 142 s | 105 s | 0.0088 tok/s | 456 s | 2.1 GB | `"Virtual memory is a"` ✅ |
+| **INT4** | 109 s | **20 s** | **0.0236 tok/s** | 169 s | 2.7 GB | `"Sure memory, in"` ⚠️ |
+
+Two findings:
+- **Speed scales with bit-width.** INT4 is **~21× faster** than FP16 and INT8
+  **~8×**, because each layer read from the HDD shrinks by 2×/4×.
+- **The "accuracy red line" is real.** FP16 and INT8 produce the same coherent
+  continuation; **INT4 degrades** into an incoherent one. Here **INT8 is the sweet
+  spot** — almost an order of magnitude faster than FP16 with *no* visible quality
+  loss; INT4 trades correctness for speed.
+
+> Results: [`results/airllm_Qwen2.5-7B-Instruct_8bit.json`](results/airllm_Qwen2.5-7B-Instruct_8bit.json),
+> [`_4bit.json`](results/airllm_Qwen2.5-7B-Instruct_4bit.json). Run them with
+> `uv run airllm-lab airllm <model> --quant 8bit` (or `4bit`).
 
 ### Stage 4 — Benchmarking ✅ done
 
@@ -115,9 +134,9 @@ metric. For each run we record **TTFT** (compute-bound *prefill*), **TPOT**
 (memory-bandwidth-bound *decode*), **throughput**, **peak RAM/VRAM** (sampled on a
 background thread), total runtime, and an energy estimate.
 
-Plotting the fitting **0.5B baseline** against the **7B AirLLM** run on a log axis
-shows the cost of layered, disk-streamed inference — a **~5,000×** drop in
-throughput:
+Plotting the fitting **0.5B baseline** against the **7B AirLLM** runs (FP16/INT8/
+INT4) on a log axis shows the cost of layered, disk-streamed inference — up to a
+**~5,000×** drop in throughput, partly clawed back by quantization:
 
 ![Throughput comparison](assets/throughput.png)
 ![Time to first token](assets/ttft.png)
@@ -220,7 +239,7 @@ Secrets (e.g. a Hugging Face token) go in a local, git-ignored `.env`
 - [x] **Phase 0–1** — planning docs + project scaffold (SDK, CLI, config, tests)
 - [x] **Phase 2** — pipeline smoke test (0.5B model runs end-to-end on GPU)
 - [x] **Phase 3** — hardware report, 7B download, **baseline failure documented**
-- [~] **Phase 4** — **AirLLM runner + benchmark harness done**; quantization (Q8/Q4) next
+- [x] **Phase 4** — **AirLLM runner, benchmark harness, and FP16/INT8/INT4 quant matrix done**
 - [x] **Phase 5** — **cost model, charts, analysis notebook, and roofline extension done**
 - [ ] **Phase 6** — final report polish, quality pass, submission
 
