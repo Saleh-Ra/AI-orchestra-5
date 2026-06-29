@@ -1,15 +1,52 @@
 """Thin CLI entry point.
 
-Contains no business logic; it only wires user input to the SDK facade
-(expanded in later phases). Excluded from coverage by design.
+Contains no business logic; it only wires user commands to the SDK facade.
+Excluded from coverage by design (see pyproject ``coverage`` config).
 """
 
-from airllm_lab.shared.version import __version__
+from __future__ import annotations
+
+import argparse
+import json
+
+from airllm_lab.sdk.sdk import LabSDK
 
 
-def main() -> None:
-    """Print the version banner (placeholder until the SDK CLI lands)."""
-    print(f"airllm-lab v{__version__}")
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the CLI argument parser."""
+    parser = argparse.ArgumentParser(prog="airllm-lab", description="AirLLM Lab CLI")
+    sub = parser.add_subparsers(dest="command")
+    sub.add_parser("version", help="print the version")
+    sub.add_parser("hardware", help="probe + save the hardware spec to results/")
+    sub.add_parser("smoke", help="run the tiny smoke-test model end-to-end")
+    dl = sub.add_parser("download", help="download a model to the D: cache")
+    dl.add_argument("model", help="HF model id, e.g. Qwen/Qwen2.5-7B-Instruct")
+    bl = sub.add_parser("baseline", help="run a baseline generation on a model")
+    bl.add_argument("model", help="HF model id, e.g. Qwen/Qwen2.5-7B-Instruct")
+    air = sub.add_parser("airllm", help="run layered AirLLM inference on a model")
+    air.add_argument("model", help="local model dir or HF id (must have a sharded index)")
+    air.add_argument("--quant", default="fp16", choices=["fp16", "8bit", "4bit"])
+    air.add_argument("--max-tokens", type=int, default=20, help="cap on generated tokens")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Parse arguments and dispatch to the SDK."""
+    args = build_parser().parse_args(argv)
+    sdk = LabSDK()
+    if args.command == "hardware":
+        print(json.dumps(sdk.hardware_report().to_dict(), indent=2))
+    elif args.command == "smoke":
+        print(json.dumps(sdk.run_smoke().to_dict(), indent=2, ensure_ascii=False))
+    elif args.command == "download":
+        print(sdk.download_model(args.model))
+    elif args.command == "baseline":
+        print(json.dumps(sdk.run_baseline_model(args.model).to_dict(), indent=2, ensure_ascii=False))
+    elif args.command == "airllm":
+        result = sdk.run_airllm(args.model, quant=args.quant, max_cap=args.max_tokens)
+        print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(f"airllm-lab v{sdk.version}")
 
 
 if __name__ == "__main__":

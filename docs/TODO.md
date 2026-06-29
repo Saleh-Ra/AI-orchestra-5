@@ -124,22 +124,39 @@ This is the exact order we execute. Each step has a **DoD** (definition of done)
     **DoD:** ≥ model-size free on D:. *(still pending — your action before M3 download.)*
 12. [x] `[A]` `git init` + first commit; ruff clean + pytest pass (5 tests, 100% cov).
 
-### Phase 2 — Pipeline smoke test  (Milestone M2)
-13. [ ] `[A]` Build the **SDK facade** + thin CLI (entry point only). **DoD:** `--help` works, tests pass.
-14. [ ] `[U]` Create HF account, accept model license, put `HF_TOKEN` in `.env`.
-    **DoD:** token present (never committed).
-15. [ ] `[A]` Run a **tiny model at aggressive quant (e.g. Q2)** through the full path
-    to prove the pipeline. **DoD:** end-to-end generation succeeds on the small model.
+### Phase 2 — Pipeline smoke test  (Milestone M2) — ✅ DONE
+13. [x] `[A]` Build the **SDK facade** + thin CLI (entry point only). **DoD:** `--help` works, tests pass.
+    *(done: `LabSDK`, CLI `version`/`hardware`/`smoke`, config loader, hardware probe.)*
+14. [~] `[U]` Create HF account, accept model license, put `HF_TOKEN` in `.env`.
+    **DoD:** token present (never committed). *(token pasted but needs **save** to disk;*
+    *not blocking — Qwen2.5 models are open, so the smoke ran token-less.)*
+15. [x] `[A]` Run a tiny model through the full path to prove the pipeline.
+    **DoD:** end-to-end generation succeeds on the small model.
+    *(done: Qwen2.5-0.5B-Instruct generated on **CUDA**, weights on **D:**, FP16. ML stack*
+    *installed: torch 2.6.0+cu124, transformers 5.12.1, accelerate, airllm 2.11.0. Quant*
+    *(Q8/Q4) deferred to Phase 4; smoke used FP16 to prove load→generate→measure.)*
 
-### Phase 3 — Baseline  (Milestone M3)
-16. [ ] `[A]` Implement hardware-probe service; write spec to `results/`. **DoD:** spec JSON saved.
-17. [ ] `[U+A]` Download the chosen "too big" model to `D:`. **DoD:** weights on disk.
-18. [ ] `[A]` Run **baseline direct execution** (Transformers ± Ollama); capture metrics
+### Phase 3 — Baseline  (Milestone M3) — ✅ DONE
+16. [x] `[A]` Implement hardware-probe service; write spec to `results/`. **DoD:** spec JSON saved.
+    *(done: `results/hardware.json`.)*
+17. [x] `[U+A]` Download the chosen "too big" model to `D:`. **DoD:** weights on disk.
+    *(done: Qwen2.5-7B-Instruct, 14.2 GB on D:, via curl in ~56 min.)*
+18. [x] `[A]` Run **baseline direct execution** (Transformers ± Ollama); capture metrics
     or the failure (OOM/swap-thrash/too-slow) with logs + screenshots. **DoD:** baseline documented.
+    *(FINDING: naive FP16 load thrashed swap and **crashed the process** — exit*
+    *`0xC0000005` ACCESS_VIOLATION at 207/339 (~61%) of weight-load after ~28 min,*
+    *never reaching the GPU. Added a pre-flight feasibility guard so it now fails*
+    *fast & clean: `results/baseline_Qwen2.5-7B-Instruct.json` (ok=false, ~15.2 GB*
+    *weights > ~8.3 GB free RAM + 4 GB VRAM). This is the motivation for AirLLM.)*
 
 ### Phase 4 — AirLLM + quantization  (Milestone M4)
-19. [ ] `[A]` Implement the **AirLLM runner** (AutoModel, shards on D:, quant configurable).
+19. [x] `[A]` Implement the **AirLLM runner** (AutoModel, shards on D:, quant configurable).
     **DoD:** big model generates via AirLLM.
+    *(DONE: `services/airllm_runner.py` + `LabSDK.run_airllm` + CLI `airllm`. The 7B*
+    *that crashed at baseline GENERATED via AirLLM on the 4 GB GPU: `"Virtual memory*
+    *is a"`, TTFT≈930 s, ≈0.0011 tok/s — feasible but disk-bound. Result:*
+    *`results/airllm_Qwen2.5-7B-Instruct_fp16.json`. Stack pinned to transformers*
+    *4.40 (AirLLM 2.11 incompatible with 5.x); greedy-decode loop over `forward`.)*
 20. [ ] `[A]` Implement the **benchmark harness** (TTFT, TPOT, throughput, peak RAM/VRAM,
     runtime, energy est.), N repeats, persist raw+aggregated. **DoD:** results in `results/`.
 21. [ ] `[A]` Run the same task across **≥ 2 quant levels** (e.g. FP16/Q8/Q4) + record

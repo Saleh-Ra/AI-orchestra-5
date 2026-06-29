@@ -15,6 +15,7 @@
   "storage": {
     "drive": "D:",
     "hf_cache": "D:/airllm_lab_cache/huggingface",
+    "models_dir": "D:/airllm_lab_cache/models",
     "layer_shards_saving_path": "D:/airllm_lab_cache/airllm_shards",
     "results_dir": "results",
     "assets_dir": "assets"
